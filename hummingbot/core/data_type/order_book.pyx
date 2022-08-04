@@ -303,6 +303,7 @@ cdef class OrderBook(PubSub):
             if bid_entry.amount < amount_left:
                 retval.append(bid_entry)
                 amount_left -= bid_entry.amount
+                self.logger().info(f"Paper Trade - amount_left = {amount_left}")
             else:
                 retval.append(OrderBookRow(bid_entry.price, amount_left, bid_entry.update_id))
                 amount_left = 0.0

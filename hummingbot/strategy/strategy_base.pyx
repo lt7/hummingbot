@@ -463,7 +463,7 @@ cdef class StrategyBase(TimeIterator):
 
         if order_type.is_limit_type():
             self.c_stop_tracking_limit_order(market_pair, order_id)
-        elif order_type == OrderType.MARKET:
+        elif order_type.is_market_type():
             self.c_stop_tracking_market_order(market_pair, order_id)
 
     cdef c_did_cancel_order_tracker(self, object order_cancelled_event):
@@ -485,7 +485,7 @@ cdef class StrategyBase(TimeIterator):
         if market_pair is not None:
             if order_type.is_limit_type():
                 self.c_stop_tracking_limit_order(market_pair, order_id)
-            elif order_type == OrderType.MARKET:
+            elif order_type.is_market_type():
                 self.c_stop_tracking_market_order(market_pair, order_id)
 
     cdef c_did_complete_sell_order_tracker(self, object order_completed_event):
@@ -583,6 +583,155 @@ cdef class StrategyBase(TimeIterator):
             self.c_start_tracking_market_order(market_trading_pair_tuple, order_id, False, amount)
 
         return order_id
+
+
+
+
+
+
+
+
+
+
+    def buy_with_stop_loss(self, market_trading_pair_tuple, amount,
+                                 order_type=OrderType.STOP_LOSS_LIMIT,
+                                 price=s_decimal_nan,
+                                 stopPrice=s_decimal_nan,
+                                 trailingDelta=0,
+                                 expiration_seconds=NaN,
+                                 position_action=PositionAction.OPEN):
+        return self.c_buy_with_stop_loss(market_trading_pair_tuple, amount,
+                                               order_type,
+                                               price,
+                                               stopPrice,
+                                               trailingDelta,
+                                               expiration_seconds,
+                                               position_action)
+
+    cdef str c_buy_with_stop_loss(self, object market_trading_pair_tuple, object amount,
+                                        object order_type=OrderType.STOP_LOSS_LIMIT, object price=s_decimal_nan,
+                                        object stopPrice=s_decimal_nan,
+                                        object trailingDelta=0,
+                                        double expiration_seconds=NaN,
+                                        position_action=PositionAction.OPEN):
+        if self._sb_delegate_lock:
+            raise RuntimeError("Delegates are not allowed to execute orders directly.")
+
+        if not (isinstance(amount, Decimal) and
+                isinstance(stopPrice, Decimal) and
+                isinstance(price, Decimal)):
+            raise TypeError("amount, price, stopPrice and amount must be Decimal objects.")
+
+        if not isinstance(trailingDelta, int):
+            raise TypeError("trailingDelta must be int objects.")
+
+        cdef:
+            kwargs = {"expiration_ts": self._current_timestamp + expiration_seconds,
+                      "trailingDelta": trailingDelta,
+                      "stopPrice": stopPrice,
+                      "position_action": position_action}
+            ConnectorBase market = market_trading_pair_tuple.market
+
+        if market not in self._sb_markets:
+            raise ValueError(f"Market object for buy order is not in the whitelisted markets set.")
+
+        cdef:
+            str order_id = market.c_buy(market_trading_pair_tuple.trading_pair,
+                                        amount=amount,
+                                        order_type=order_type,
+                                        price=price,
+                                        kwargs=kwargs)
+
+        # Start order tracking
+        if order_type.is_limit_type():
+            self.c_start_tracking_limit_order(market_trading_pair_tuple, order_id, True, stopPrice, amount)
+
+        return order_id
+
+    def sell_with_stop_loss(self, market_trading_pair_tuple, amount,
+                                  order_type=OrderType.STOP_LOSS_LIMIT,
+                                  price=s_decimal_nan,
+                                  stopPrice=s_decimal_nan,
+                                  trailingDelta=0,
+                                  expiration_seconds=NaN,
+                                  position_action=PositionAction.OPEN):
+        return self.c_sell_with_stop_loss(market_trading_pair_tuple, amount,
+                                                order_type,
+                                                price,
+                                                stopPrice,
+                                                trailingDelta,
+                                                expiration_seconds,
+                                                position_action)
+
+    cdef str c_sell_with_stop_loss(self, object market_trading_pair_tuple, object amount,
+                                         object order_type=OrderType.STOP_LOSS_LIMIT,
+                                         object price=s_decimal_nan,
+                                         object stopPrice=s_decimal_nan,
+                                         object trailingDelta=0,
+                                         double expiration_seconds=NaN,
+                                         position_action=PositionAction.OPEN):
+        if self._sb_delegate_lock:
+            raise RuntimeError("Delegates are not allowed to execute orders directly.")
+
+        if not (isinstance(amount, Decimal) and
+                isinstance(stopPrice, Decimal) and
+                isinstance(price, Decimal)):
+            raise TypeError("amount, price, stopPrice must be Decimal objects.")
+
+        if not isinstance(trailingDelta, int):
+            raise TypeError("trailingDelta must be int object.")
+
+        cdef:
+            kwargs = {"expiration_ts": self._current_timestamp + expiration_seconds,
+                      "trailingDelta": trailingDelta,
+                      "stopPrice": stopPrice,
+                      "position_action": position_action}
+            ConnectorBase market = market_trading_pair_tuple.market
+
+        if market not in self._sb_markets:
+            raise ValueError(f"Market object for sell order is not in the whitelisted markets set.")
+
+        cdef:
+            str order_id = market.c_sell(market_trading_pair_tuple.trading_pair,
+                                         amount=amount,
+                                         order_type=order_type,
+                                         price=price,
+                                         kwargs=kwargs)
+
+        # Start order tracking
+        if order_type.is_limit_type():
+            self.c_start_tracking_limit_order(market_trading_pair_tuple, order_id, False, stopPrice, amount)
+
+        return order_id
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     cdef c_cancel_order(self, object market_trading_pair_tuple, str order_id):
         cdef:

@@ -205,7 +205,7 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
                     "quoteAsset": self.quote_asset,
                     "quotePrecision": 8,
                     "quoteAssetPrecision": 8,
-                    "orderTypes": ["LIMIT", "LIMIT_MAKER"],
+                    "orderTypes": ["LIMIT", "LIMIT_MAKER", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
                     "icebergAllowed": True,
                     "ocoAllowed": True,
                     "isSpotTradingAllowed": True,
@@ -224,6 +224,12 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
                         }, {
                             "filterType": "MIN_NOTIONAL",
                             "minNotional": "0.00100000"
+                        }, {
+                            "filterType": "TRAILING_DELTA",
+                            "minTrailingAboveDelta": 10,
+                            "maxTrailingAboveDelta": 2000,
+                            "minTrailingBelowDelta": 10,
+                            "maxTrailingBelowDelta": 2000
                         }
                     ],
                     "permissions": [
@@ -250,7 +256,7 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
                     "quoteAsset": self.quote_asset,
                     "quotePrecision": 8,
                     "quoteAssetPrecision": 8,
-                    "orderTypes": ["LIMIT", "LIMIT_MAKER"],
+                    "orderTypes": ["LIMIT", "LIMIT_MAKER", "STOP_LOSS_LIMIT", "TAKE_PROFIT_LIMIT"],
                     "icebergAllowed": True,
                     "ocoAllowed": True,
                     "isSpotTradingAllowed": True,
@@ -347,7 +353,13 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
 
     @property
     def expected_supported_order_types(self):
-        return [OrderType.LIMIT, OrderType.LIMIT_MAKER]
+        return [OrderType.LIMIT,
+                OrderType.LIMIT_MAKER,
+                OrderType.MARKET,
+                OrderType.STOP_LOSS,
+                OrderType.STOP_LOSS_LIMIT,
+                OrderType.TAKE_PROFIT,
+                OrderType.TAKE_PROFIT_LIMIT]
 
     @property
     def expected_trading_rule(self):
@@ -360,6 +372,14 @@ class BinanceExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTests
                 self.trading_rules_request_mock_response["symbols"][0]["filters"][1]["stepSize"]),
             min_notional_size=Decimal(
                 self.trading_rules_request_mock_response["symbols"][0]["filters"][2]["minNotional"]),
+            min_trailing_above_delta=Decimal(
+                self.trading_rules_request_mock_response["symbols"][0]["filters"][3]["minTrailingAboveDelta"]),
+            max_trailing_above_delta=Decimal(
+                self.trading_rules_request_mock_response["symbols"][0]["filters"][3]["maxTrailingAboveDelta"]),
+            min_trailing_below_delta=Decimal(
+                self.trading_rules_request_mock_response["symbols"][0]["filters"][3]["minTrailingBelowDelta"]),
+            max_trailing_below_delta=Decimal(
+                self.trading_rules_request_mock_response["symbols"][0]["filters"][3]["maxTrailingBelowDelta"])
         )
 
     @property

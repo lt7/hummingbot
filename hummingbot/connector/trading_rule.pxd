@@ -11,5 +11,10 @@ cdef class TradingRule:
         public object min_order_value                  # Calculated min base asset value based on the minimum accepted trade value (e.g. 0.078LTC is ~50,000 Satoshis)
         public bint supports_limit_orders              # if limit order is allowed for this trading pair
         public bint supports_market_orders             # if market order is allowed for this trading pair
+        public bint supports_trailing_stop             # if trailing stop is allowed for this  trading pair
         public object buy_order_collateral_token       # Indicates the collateral token used for buy orders
         public object sell_order_collateral_token      # Indicates the collateral token used for sell orders
+        public object min_trailing_above_delta         # Min trailing above delta
+        public object max_trailing_above_delta         # Max trailing above delta
+        public object min_trailing_below_delta         # Min trailing below delta
+        public object max_trailing_below_delta         # Max trailing below delta

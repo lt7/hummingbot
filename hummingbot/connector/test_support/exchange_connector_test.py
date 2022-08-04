@@ -677,6 +677,52 @@ class AbstractExchangeConnectorTests:
             )
 
         @aioresponses()
+        def test_create_buy_stop_loss_limit_order_successfully(self, mock_api):
+            self._simulate_trading_rules_initialized()
+            request_sent_event = asyncio.Event()
+            self.exchange._set_current_timestamp(1640780000)
+
+            url = self.order_creation_url
+
+            creation_response = self.order_creation_request_successful_mock_response
+
+            mock_api.post(url,
+                          body=json.dumps(creation_response),
+                          callback=lambda *args, **kwargs: request_sent_event.set())
+
+            order_id = self.exchange.buy(trading_pair=self.trading_pair,
+                                         amount=Decimal("100"),
+                                         order_type=OrderType.STOP_LOSS_LIMIT,
+                                         price=Decimal("10000"),
+                                         stopPrice=Decimal("110"))
+            self.async_run_with_timeout(request_sent_event.wait())
+
+            order_request = self._all_executed_requests(mock_api, url)[0]
+            self.validate_auth_credentials_present(order_request)
+            self.assertIn(order_id, self.exchange.in_flight_orders)
+            self.validate_order_creation_request(
+                order=self.exchange.in_flight_orders[order_id],
+                request_call=order_request)
+
+            create_event: BuyOrderCreatedEvent = self.buy_order_created_logger.event_log[0]
+            self.assertEqual(self.exchange.current_timestamp, create_event.timestamp)
+            self.assertEqual(self.trading_pair, create_event.trading_pair)
+            self.assertEqual(OrderType.STOP_LOSS_LIMIT, create_event.type)
+            self.assertEqual(Decimal("100"), create_event.amount)
+            self.assertEqual(Decimal("10000"), create_event.price)
+            self.assertEqual(Decimal("110"), create_event.stopPrice)
+            self.assertEqual(order_id, create_event.order_id)
+            self.assertEqual(str(self.expected_exchange_order_id), create_event.exchange_order_id)
+
+            self.assertTrue(
+                self.is_logged(
+                    "INFO",
+                    f"Created {OrderType.STOP_LOSS_LIMIT.name} {TradeType.BUY.name} order {order_id} for "
+                    f"{Decimal('100.000000')} {self.trading_pair} with stopLoss {Decimal('110.000000')}."
+                )
+            )
+
+        @aioresponses()
         def test_create_order_fails_and_raises_failure_event(self, mock_api):
             self._simulate_trading_rules_initialized()
             request_sent_event = asyncio.Event()

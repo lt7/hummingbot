@@ -7,9 +7,22 @@ class OrderType(Enum):
     MARKET = 1
     LIMIT = 2
     LIMIT_MAKER = 3
+    STOP_LOSS = 4
+    STOP_LOSS_LIMIT = 5
+    TAKE_PROFIT = 6
+    TAKE_PROFIT_LIMIT = 7
 
     def is_limit_type(self):
-        return self in (OrderType.LIMIT, OrderType.LIMIT_MAKER)
+        return self in (OrderType.LIMIT,
+                        OrderType.LIMIT_MAKER,
+                        OrderType.STOP_LOSS,
+                        OrderType.STOP_LOSS_LIMIT,
+                        OrderType.TAKE_PROFIT_LIMIT,
+                        OrderType.TAKE_PROFIT
+                        )
+
+    def is_market_type(self):
+        return OrderType.MARKET
 
 
 class OpenOrder(NamedTuple):

@@ -96,6 +96,8 @@ class InFlightOrder:
             creation_timestamp: float,
             price: Optional[Decimal] = None,
             exchange_order_id: Optional[str] = None,
+            stopPrice: Optional[Decimal] = None,
+            trailingDelta: Optional[int] = None,
             initial_state: OrderState = OrderState.PENDING_CREATE,
             leverage: int = 1,
             position: PositionAction = PositionAction.NIL,
@@ -106,6 +108,8 @@ class InFlightOrder:
         self.order_type = order_type
         self.trade_type = trade_type
         self.price = price
+        self.stopPrice = stopPrice
+        self.trailingDelta = trailingDelta
         self.amount = amount
         self.exchange_order_id = exchange_order_id
         self.current_state = initial_state
@@ -133,6 +137,8 @@ class InFlightOrder:
                 self.order_type,
                 self.trade_type,
                 self.price,
+                self.stopPrice,
+                self.trailingDelta,
                 self.amount,
                 self.exchange_order_id,
                 self.current_state,
@@ -223,6 +229,8 @@ class InFlightOrder:
             trade_type=getattr(TradeType, data["trade_type"]),
             amount=Decimal(data["amount"]),
             price=Decimal(data["price"]),
+            stopPrice=Decimal(data["stopPrice"]),
+            trailingDelta=Decimal(data["trailingDelta"]),
             exchange_order_id=data["exchange_order_id"],
             initial_state=OrderState(int(data["last_state"])),
             leverage=int(data["leverage"]),
@@ -251,6 +259,8 @@ class InFlightOrder:
             "order_type": self.order_type.name,
             "trade_type": self.trade_type.name,
             "price": str(self.price),
+            "stopPrice": str(self.stopPrice),
+            "trailingDelta": str(self.trailingDelta),
             "amount": str(self.amount),
             "executed_amount_base": str(self.executed_amount_base),
             "executed_amount_quote": str(self.executed_amount_quote),

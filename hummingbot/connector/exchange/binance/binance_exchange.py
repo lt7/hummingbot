@@ -1,4 +1,5 @@
 import asyncio
+import math
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -116,7 +117,13 @@ class BinanceExchange(ExchangePyBase):
         return self._trading_required
 
     def supported_order_types(self):
-        return [OrderType.LIMIT, OrderType.LIMIT_MAKER]
+        return [OrderType.LIMIT,
+                OrderType.LIMIT_MAKER,
+                OrderType.MARKET,
+                OrderType.STOP_LOSS,
+                OrderType.STOP_LOSS_LIMIT,
+                OrderType.TAKE_PROFIT,
+                OrderType.TAKE_PROFIT_LIMIT]
 
     def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
         error_description = str(request_exception)
@@ -164,10 +171,16 @@ class BinanceExchange(ExchangePyBase):
                            amount: Decimal,
                            trade_type: TradeType,
                            order_type: OrderType,
-                           price: Decimal) -> Tuple[str, float]:
+                           price: Optional[Decimal] = Decimal("NaN"),
+                           stopPrice: Optional[Decimal] = Decimal("NaN"),
+                           trailingDelta: Optional[int] = 0
+                           ) -> Tuple[str, float]:
         order_result = None
         amount_str = f"{amount:f}"
         price_str = f"{price:f}"
+        stopPrice_str = f"{stopPrice:f}"
+        if trailingDelta != 0:
+            trailingDelta_str = f"{trailingDelta:d}"
         type_str = BinanceExchange.binance_order_type(order_type)
         side_str = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
         symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
@@ -176,9 +189,19 @@ class BinanceExchange(ExchangePyBase):
                       "quantity": amount_str,
                       "type": type_str,
                       "newClientOrderId": order_id,
-                      "price": price_str}
+                      "timeInForce": CONSTANTS.TIME_IN_FORCE_GTC}
         if order_type == OrderType.LIMIT:
-            api_params["timeInForce"] = CONSTANTS.TIME_IN_FORCE_GTC
+            api_params["price"] = price_str
+        if order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT):
+            api_params["price"] = price_str
+            if not math.isnan(stopPrice):
+                api_params["stopPrice"] = stopPrice_str
+        if order_type in (OrderType.STOP_LOSS_LIMIT, OrderType.TAKE_PROFIT_LIMIT):
+            api_params["price"] = price_str
+            if not math.isnan(stopPrice):
+                api_params["stopPrice"] = stopPrice_str
+            if trailingDelta != 0:
+                api_params["trailingDelta"] = trailingDelta_str
 
         order_result = await self._api_post(
             path_url=CONSTANTS.ORDER_PATH_URL,
@@ -224,6 +247,12 @@ class BinanceExchange(ExchangePyBase):
                 }, {
                     "filterType": "MIN_NOTIONAL",
                     "minNotional": "0.00100000"
+                }, {
+                    "filterType": "TRAILING_DELTA",
+                    "minTrailingAboveDelta": 10,
+                    "maxTrailingAboveDelta": 2000,
+                    "minTrailingBelowDelta": 10,
+                    "maxTrailingBelowDelta": 2000
                 }
             ]
         }
@@ -237,18 +266,29 @@ class BinanceExchange(ExchangePyBase):
                 price_filter = [f for f in filters if f.get("filterType") == "PRICE_FILTER"][0]
                 lot_size_filter = [f for f in filters if f.get("filterType") == "LOT_SIZE"][0]
                 min_notional_filter = [f for f in filters if f.get("filterType") == "MIN_NOTIONAL"][0]
+                trailing_delta_filter = [f for f in filters if f.get("filterType") == "TRAILING_DELTA"][0]
 
                 min_order_size = Decimal(lot_size_filter.get("minQty"))
                 tick_size = price_filter.get("tickSize")
                 step_size = Decimal(lot_size_filter.get("stepSize"))
                 min_notional = Decimal(min_notional_filter.get("minNotional"))
+                allow_trailing_stop = rule.get("allowTrailingStop")
+                min_trailing_above_delta = trailing_delta_filter.get("minTrailingAboveDelta")
+                max_trailing_above_delta = trailing_delta_filter.get("maxTrailingAboveDelta")
+                min_trailing_below_delta = trailing_delta_filter.get("minTrailingBelowDelta")
+                max_trailing_below_delta = trailing_delta_filter.get("maxTrailingBelowDelta")
 
                 retval.append(
                     TradingRule(trading_pair,
                                 min_order_size=min_order_size,
                                 min_price_increment=Decimal(tick_size),
                                 min_base_amount_increment=Decimal(step_size),
-                                min_notional_size=Decimal(min_notional)))
+                                min_notional_size=Decimal(min_notional),
+                                supports_trailing_stop=allow_trailing_stop,
+                                min_trailing_above_delta=Decimal(min_trailing_above_delta),
+                                max_trailing_above_delta=Decimal(max_trailing_above_delta),
+                                min_trailing_below_delta=Decimal(min_trailing_below_delta),
+                                max_trailing_below_delta=Decimal(max_trailing_below_delta)))
 
             except Exception:
                 self.logger().exception(f"Error parsing the trading pair rule {rule}. Skipping.")
@@ -273,7 +313,7 @@ class BinanceExchange(ExchangePyBase):
         async for event_message in self._iter_user_event_queue():
             try:
                 event_type = event_message.get("e")
-                # Refer to https://github.com/binance-exchange/binance-official-api-docs/blob/master/user-data-stream.md
+                # Refer to https://github.com/binance/binance-spot-api-docs/blob/master/user-data-stream.md
                 # As per the order update section in Binance the ID of the order being canceled is under the "C" key
                 if event_type == "executionReport":
                     execution_type = event_message.get("x")

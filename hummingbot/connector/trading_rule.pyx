@@ -21,8 +21,14 @@ cdef class TradingRule:
                  max_price_significant_digits: Decimal = s_decimal_max,
                  supports_limit_orders: bool = True,
                  supports_market_orders: bool = True,
+                 supports_trailing_stop: Optional[bool] = None,
                  buy_order_collateral_token: Optional[str] = None,
-                 sell_order_collateral_token: Optional[str] = None):
+                 sell_order_collateral_token: Optional[str] = None,
+                 min_trailing_above_delta: Optional[Decimal] = None,
+                 max_trailing_above_delta: Optional[Decimal] = None,
+                 min_trailing_below_delta: Optional[Decimal] = None,
+                 max_trailing_below_delta: Optional[Decimal] = None,
+                 ):
         self.trading_pair = trading_pair
         self.min_order_size = min_order_size
         self.max_order_size = max_order_size
@@ -34,9 +40,14 @@ cdef class TradingRule:
         self.max_price_significant_digits = max_price_significant_digits
         self.supports_limit_orders = supports_limit_orders
         self.supports_market_orders = supports_market_orders
+        self.supports_trailing_stop = supports_trailing_stop
         quote_token = split_hb_trading_pair(self.trading_pair)[1]
         self.buy_order_collateral_token = buy_order_collateral_token or quote_token
         self.sell_order_collateral_token = sell_order_collateral_token or quote_token
+        self.min_trailing_above_delta = min_trailing_above_delta
+        self.max_trailing_above_delta = max_trailing_above_delta
+        self.min_trailing_below_delta = min_trailing_below_delta
+        self.max_trailing_below_delta = max_trailing_below_delta
 
     def __repr__(self) -> str:
         return f"TradingRule(trading_pair='{self.trading_pair}', " \
@@ -50,5 +61,10 @@ cdef class TradingRule:
                f"max_price_significant_digits={self.max_price_significant_digits}), " \
                f"supports_limit_orders={self.supports_limit_orders}), " \
                f"supports_market_orders={self.supports_market_orders}, " \
+               f"supports_trailing_stop={self.supports_trailing_stop}, " \
                f"buy_order_collateral_token={self.buy_order_collateral_token}, " \
-               f"sell_order_collateral_token={self.sell_order_collateral_token})"
+               f"sell_order_collateral_token={self.sell_order_collateral_token}, " \
+               f"min_trailing_above_delta={self.min_trailing_above_delta}, " \
+               f"max_trailing_above_delta={self.max_trailing_above_delta}, " \
+               f"min_trailing_below_delta={self.min_trailing_below_delta}, " \
+               f"max_trailing_below_delta={self.max_trailing_below_delta}"

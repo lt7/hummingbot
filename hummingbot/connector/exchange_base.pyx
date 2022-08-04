@@ -308,7 +308,16 @@ cdef class ExchangeBase(ConnectorBase):
         return self.c_quantize_order_amount(trading_pair, amount)
 
     def supported_order_types(self):
-        return [OrderType.LIMIT, OrderType.MARKET]
+        return [OrderType.LIMIT,
+                OrderType.LIMIT_MAKER,
+                OrderType.STOP_LOSS,
+                OrderType.STOP_LOSS_LIMIT,
+                OrderType.TAKE_PROFIT_LIMIT,
+                OrderType.TAKE_PROFIT,
+                OrderType.MARKET]
+
+    def is_market_type(self):
+        return OrderType.MARKET
 
     def get_maker_order_type(self):
         """

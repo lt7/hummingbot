@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import logging
+import math
 from abc import ABC, abstractmethod
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, AsyncIterable, Dict, List, Optional, Tuple
@@ -306,13 +307,43 @@ class ExchangePyBase(ExchangeBase, ABC):
             hbot_order_id_prefix=self.client_order_id_prefix,
             max_id_len=self.client_order_id_max_length
         )
-        safe_ensure_future(self._create_order(
-            trade_type=TradeType.BUY,
-            order_id=order_id,
-            trading_pair=trading_pair,
-            amount=amount,
-            order_type=order_type,
-            price=price))
+
+        if 'trailingDelta' in kwargs:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.BUY,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price,
+                trailingDelta=kwargs.get('trailingDelta')))
+        elif ('stopPrice' and 'trailingDelta') in kwargs:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.BUY,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price,
+                stopPrice=kwargs.get('stopPrice')),
+                trailingDelta=kwargs.get('trailingDelta'))
+        elif 'stopPrice' in kwargs:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.BUY,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price,
+                stopPrice=kwargs.get('stopPrice')))
+        else:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.BUY,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price))
         return order_id
 
     def sell(self,
@@ -325,7 +356,7 @@ class ExchangePyBase(ExchangeBase, ABC):
         Creates a promise to create a sell order using the parameters.
         :param trading_pair: the token pair to operate with
         :param amount: the order amount
-        :param order_type: the type of order to create (MARKET, LIMIT, LIMIT_MAKER)
+        :param order_type: the type of order to create (MARKET, LIMIT, LIMIT_MAKER, STOP_LOSS, TAKE_PROFIT)
         :param price: the order price
         :return: the id assigned by the connector to the order (the client id)
         """
@@ -335,13 +366,42 @@ class ExchangePyBase(ExchangeBase, ABC):
             hbot_order_id_prefix=self.client_order_id_prefix,
             max_id_len=self.client_order_id_max_length
         )
-        safe_ensure_future(self._create_order(
-            trade_type=TradeType.SELL,
-            order_id=order_id,
-            trading_pair=trading_pair,
-            amount=amount,
-            order_type=order_type,
-            price=price))
+        if 'trailingDelta' in kwargs:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.SELL,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price,
+                trailingDelta=kwargs.get('trailingDelta')))
+        elif ('stopPrice' and 'trailingDelta') in kwargs:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.SELL,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price,
+                stopPrice=kwargs.get('stopPrice')),
+                trailingDelta=kwargs.get('trailingDelta'))
+        elif 'stopPrice' in kwargs:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.SELL,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price,
+                stopPrice=kwargs.get('stopPrice')))
+        else:
+            safe_ensure_future(self._create_order(
+                trade_type=TradeType.SELL,
+                order_id=order_id,
+                trading_pair=trading_pair,
+                amount=amount,
+                order_type=order_type,
+                price=price))
         return order_id
 
     def get_fee(self,
@@ -419,9 +479,11 @@ class ExchangePyBase(ExchangeBase, ABC):
                             trading_pair: str,
                             amount: Decimal,
                             order_type: OrderType,
-                            price: Optional[Decimal] = None):
+                            price: Optional[Decimal] = None,
+                            stopPrice: Optional[Decimal] = Decimal("NaN"),
+                            trailingDelta: Optional[int] = int):
         """
-        Creates a an order in the exchange using the parameters to configure it
+        Creates an order in the exchange using the parameters to configure it
 
         :param trade_type: the side of the order (BUY of SELL)
         :param order_id: the id that should be assigned to the order (the client id)
@@ -435,20 +497,61 @@ class ExchangePyBase(ExchangeBase, ABC):
 
         if order_type in [OrderType.LIMIT, OrderType.LIMIT_MAKER]:
             price = self.quantize_order_price(trading_pair, price)
-            quantize_amount_price = Decimal("0") if price.is_nan() else price
+            quantize_amount_price = Decimal("0") if (price is None) else price
+            amount = self.quantize_order_amount(trading_pair=trading_pair, amount=amount, price=quantize_amount_price)
+        elif order_type in [OrderType.STOP_LOSS_LIMIT, OrderType.TAKE_PROFIT_LIMIT]:
+            price = self.quantize_order_price(trading_pair, price)
+            if not math.isnan(stopPrice):
+                stopPrice = self.quantize_order_price(trading_pair, stopPrice)
+            quantize_amount_price = Decimal("0") if (price is None) else price
             amount = self.quantize_order_amount(trading_pair=trading_pair, amount=amount, price=quantize_amount_price)
         else:
             amount = self.quantize_order_amount(trading_pair=trading_pair, amount=amount)
 
-        self.start_tracking_order(
-            order_id=order_id,
-            exchange_order_id=None,
-            trading_pair=trading_pair,
-            order_type=order_type,
-            trade_type=trade_type,
-            price=price,
-            amount=amount
-        )
+        order_params = {"order_id": order_id,
+                        "exchange_order_id": None,
+                        "trading_pair": trading_pair,
+                        "amount": amount,
+                        "trade_type": trade_type,
+                        "order_type": order_type}
+
+        if order_type == OrderType.LIMIT:
+            order_params["price"] = price
+        if order_type in (OrderType.STOP_LOSS_LIMIT, OrderType.TAKE_PROFIT_LIMIT, OrderType.STOP_LOSS, OrderType.TAKE_PROFIT):
+            order_params["price"] = quantize_amount_price
+            if not math.isnan(stopPrice):
+                order_params["stopPrice"] = stopPrice
+            if trailingDelta != 0:
+                if trade_type == 'BUY':
+                    if not trailingDelta >= trading_rule.min_trailing_above_delta:
+                        self.logger().warning(
+                            f"{trade_type.name.title()} trailingDelta {trailingDelta} is lower than the min_trailing_above_delta"
+                            f" size {trading_rule.min_trailing_above_delta}. The order will not be created.")
+                        self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
+                        return
+                    elif not trailingDelta <= trading_rule.max_trailing_above_delta:
+                        self.logger().warning(
+                            f"{trade_type.name.title()} trailingDelta {trailingDelta} is greater than the max_trailing_above_delta"
+                            f" size {trading_rule.max_trailing_above_delta}. The order will not be created.")
+                        self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
+                        return
+                elif trade_type == 'SELL':
+                    if not trailingDelta >= trading_rule.min_trailing_below_delta:
+                        self.logger().warning(
+                            f"{trade_type.name.title()} trailingDelta {trailingDelta} is lower than the min_trailing_below_delta"
+                            f" size {trading_rule.min_trailing_below_delta}. The order will not be created.")
+                        self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
+                        return
+                    elif not trailingDelta <= trading_rule.max_trailing_below_delta:
+                        self.logger().warning(
+                            f"{trade_type.name.title()} trailingDelta {trailingDelta} is greater than the max_trailing_below_delta"
+                            f" size {trading_rule.max_trailing_below_delta}. The order will not be created.")
+                        self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
+                        return
+
+                order_params["trailingDelta"] = trailingDelta
+
+        self.start_tracking_order(**order_params)
 
         if order_type not in self.supported_order_types():
             self.logger().error(f"{order_type} is not in the list of supported order types")
@@ -460,6 +563,7 @@ class ExchangePyBase(ExchangeBase, ABC):
                                   f" size {trading_rule.min_order_size}. The order will not be created.")
             self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
             return
+
         if price is not None and amount * price < trading_rule.min_notional_size:
             self.logger().warning(f"{trade_type.name.title()} order notional {amount * price} is lower than the "
                                   f"minimum notional size {trading_rule.min_notional_size}. "
@@ -467,13 +571,8 @@ class ExchangePyBase(ExchangeBase, ABC):
             self._update_order_after_failure(order_id=order_id, trading_pair=trading_pair)
 
         try:
-            exchange_order_id, update_timestamp = await self._place_order(
-                order_id=order_id,
-                trading_pair=trading_pair,
-                amount=amount,
-                trade_type=trade_type,
-                order_type=order_type,
-                price=price)
+            del order_params['exchange_order_id']
+            exchange_order_id, update_timestamp = await self._place_order(**order_params)
 
             order_update: OrderUpdate = OrderUpdate(
                 client_order_id=order_id,
@@ -561,9 +660,13 @@ class ExchangePyBase(ExchangeBase, ABC):
                              exchange_order_id: Optional[str],
                              trading_pair: str,
                              trade_type: TradeType,
-                             price: Decimal,
                              amount: Decimal,
-                             order_type: OrderType):
+                             order_type: OrderType,
+                             price: Optional[Decimal] = None,
+                             stopPrice: Optional[Decimal] = Decimal("NaN"),
+                             trailingDelta: Optional[int] = int
+                             ):
+
         """
         Starts tracking an order by adding it to the order tracker.
 
@@ -572,8 +675,10 @@ class ExchangePyBase(ExchangeBase, ABC):
         :param trading_pair: the token pair for the operation
         :param trade_type: the type of order (buy or sell)
         :param price: the price for the order
+        :param stopPrice: the stopPrice the order t
+        :param trailingDelta: the trailingDelta for stopOrder in BIPS
         :param amount: the amount for the order
-        :param order_type: type of execution for the order (MARKET, LIMIT, LIMIT_MAKER)
+        :param order_type: type of execution for the order (MARKET, LIMIT, LIMIT_MAKER, STOP_LOSS, TAKE_PROFIT)
         """
         self._order_tracker.start_tracking_order(
             InFlightOrder(
@@ -584,6 +689,8 @@ class ExchangePyBase(ExchangeBase, ABC):
                 trade_type=trade_type,
                 amount=amount,
                 price=price,
+                stopPrice=stopPrice,
+                trailingDelta=trailingDelta,
                 creation_timestamp=self.current_timestamp
             )
         )
@@ -616,7 +723,9 @@ class ExchangePyBase(ExchangeBase, ABC):
                            amount: Decimal,
                            trade_type: TradeType,
                            order_type: OrderType,
-                           price: Decimal
+                           price: Optional[Decimal] = Decimal("NaN"),
+                           stopPrice: Optional[Decimal] = Decimal("NaN"),
+                           trailingDelta: Optional[Decimal] = Decimal("NaN")
                            ) -> Tuple[str, float]:
         raise NotImplementedError
 
