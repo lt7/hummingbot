@@ -125,6 +125,10 @@ wazirx_secret_key = os.getenv("WAZIRX_SECRET_KEY")
 altmarkets_api_key = os.getenv("ALTMARKETS_API_KEY")
 altmarkets_secret_key = os.getenv("ALTMARKETS_SECRET_KEY")
 
+# Independentreserve Test
+independentreserve_api_key = os.getenv("INDEPENDENTRESERVE_API_KEY")
+independentreserve_secret_key = os.getenv("INDEPENDENTRESERVE_SECRET_KEY")
+
 # Wallet Tests
 test_erc20_token_address = os.getenv("TEST_ERC20_TOKEN_ADDRESS")
 web3_test_private_key_a = os.getenv("TEST_WALLET_PRIVATE_KEY_A")

@@ -129,8 +129,12 @@ bybit_perpetual_testnet_secret_key: null
 
 wazirx_api_key: null
 wazirx_secret_key: null
+
 mexc_api_key: null
 mexc_secret_key: null
+
+independentreserve_api_key: null
+independentreserve_secret_key: null
 
 # Ethereum wallet address: required for trading on a DEX
 ethereum_wallet: null

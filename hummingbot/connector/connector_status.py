@@ -26,6 +26,7 @@ connector_status = {
     'gate_io': 'yellow',
     'hitbtc': 'green',
     'huobi': 'green',
+    'independentreserve': 'yellow',
     'kraken': 'yellow',
     'kucoin': 'yellow',
     'k2': 'red',
